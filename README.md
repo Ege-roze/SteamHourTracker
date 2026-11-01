@@ -32,7 +32,18 @@ The app measures connected session time locally. Its timers do not prove that St
 
 The project targets `net10.0-windows` and x64. The official `Microsoft.Web.WebView2` package is pinned to `1.0.4314.35`. If the browser runtime is missing, install it from [Microsoft's official WebView2 page](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-## Build and run
+## Download and run (no Visual Studio required)
+
+1. Open [the latest release](https://github.com/Ege-roze/SteamHourTracker/releases/latest).
+2. Download **SteamHourTracker-v1.0.0-win-x64.zip** from **Assets**. GitHub's automatic **Source code** archives are for building from source.
+3. Extract the entire ZIP to a folder you can write to.
+4. Start Steam and sign in, then double-click **SteamHourTracker.exe** in the extracted folder.
+
+The Windows x64 package includes the .NET runtime and the verified Steam native library. Visual Studio, the .NET SDK, and a separate .NET installation are not required. Keep all files beside the executable; do not run it directly from inside the ZIP or move just the EXE.
+
+Steam must remain running. Automatic card farming's web sign-in also requires the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), installed separately if it is not already available. Preferences remain in the current Windows user's local application data folder.
+
+## Build and run from source
 
 First, prepare the pinned Steam native dependency from the project directory:
 
@@ -63,6 +74,16 @@ After building, you can also run `bin\Release\net10.0-windows\SteamHourTracker.e
 The build copies `native/steam_api64.dll` into the output directory. The app verifies its SHA-256 hash before loading it. See [Third-party components](#third-party-components) for provenance and dependency notices.
 
 Opening the app restores preferences and reads the library. It does not start game sessions automatically.
+
+### Publish a ready-to-run Windows folder
+
+After preparing the native dependency, run:
+
+```powershell
+dotnet publish SteamHourTracker.csproj -p:PublishProfile=Portable
+```
+
+The output is `dist\SteamHourTracker-win-x64\SteamHourTracker.exe` with its dependencies. This is a self-contained x64 release without trimming; keep and distribute the entire folder. Release packages also include the .NET license and third-party notices under `licenses`.
 
 ## Quick start
 

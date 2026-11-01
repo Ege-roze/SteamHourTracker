@@ -2,7 +2,7 @@
 
 File: `native/steam_api64.dll`
 
-This binary is not included in the source repository. Obtain it separately using the instructions in `native/README.md`; the helper script verifies the pinned hash. The project's MIT license applies to original application code, not this binary.
+This binary is not included in the source repository. Source builds obtain it separately using the instructions in `native/README.md`; the helper script verifies the pinned hash. Ready-to-run Windows release packages include the unmodified redistributable beside the executable, as described in Valve's [Steamworks API setup documentation](https://partner.steamgames.com/doc/sdk/api). The project's MIT license applies to original application code, not this binary.
 
 Publisher: Valve Corp.
 
@@ -20,6 +20,10 @@ Signer subject: `CN=Valve Corp., O=Valve Corp., L=Bellevue, S=Washington, C=US`.
 The DLL is a Valve binary; it is not covered by the Steamworks.NET C# wrapper's MIT license.
 The Steamworks.NET wrapper itself is not included or used by this project.
 Valve's Steamworks SDK terms apply to the native library; inspect those terms before redistributing it.
+
+## .NET runtime in ready-to-run packages
+
+Self-contained Windows releases include Microsoft's .NET and Windows Desktop runtime components. Their original license and third-party notices are included under `licenses`. These components retain their own licenses; the project's MIT license does not replace them.
 
 API signatures were checked against the same release's `CodeGen/steam/steam_api.h`
 and `CodeGen/steam/steam_api_flat.h`. This project contains its own minimal C# interop declarations.

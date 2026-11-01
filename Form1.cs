@@ -37,8 +37,12 @@ public partial class Form1 : Form
         cardFarm.BeforeStage += PrepareCardStage;
         cardFarm.Completed += () => ShowCompletionNotification(UiText.Get("Kart modu sona erdi"), cardFarm.Message);
         sourceBox.SelectedIndex = 0;
-        trayIcon.Icon = SystemIcons.Application;
-        Icon = SystemIcons.Application;
+        using var iconStream = typeof(Form1).Assembly.GetManifestResourceStream("SteamHourTracker.App.ico")!;
+        using var sourceIcon = new Icon(iconStream);
+        var applicationIcon = (Icon)sourceIcon.Clone();
+        Icon = applicationIcon;
+        trayIcon.Icon = applicationIcon;
+        Disposed += (_, _) => applicationIcon.Dispose();
         startButton.Click += async (_, _) => await StartSessionAsync();
         stopButton.Click += async (_, _) => await StopSessionAsync();
         resetProgressButton.Click += (_, _) => ResetSelectedProgress();
