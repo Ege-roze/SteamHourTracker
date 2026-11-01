@@ -1,0 +1,26 @@
+# Visual Studio and build outputs
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+
+# Third-party native binary: provision separately, see native/README.md
+native/*.dll
+native/*.download-*
+
+# Local application data and development notes
+settings.json
+games.json
+SteamWebView/
+steam_appid.txt
+ILERLEME.md
+DOGRULAMA.md
+*.log
+*.tmp
+*.bak
+*.zip
+.env
+.env.*
+!.env.example

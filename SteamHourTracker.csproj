@@ -1,0 +1,27 @@
+<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>SteamHourTracker</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Strings.en.json" LogicalName="SteamHourTracker.Strings.en.json" WithCulture="false" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <None Update="native\steam_api64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" TargetPath="steam_api64.dll" />
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- Remove after NuGet imports, during evaluation, so Visual Studio and builds
+       see the same WinForms-only references. Keep WebView2's native loader targets. -->
+  <ItemGroup>
+    <Reference Remove="@(Reference->WithMetadataValue('Filename', 'Microsoft.Web.WebView2.Wpf'))" />
+  </ItemGroup>
+</Project>
