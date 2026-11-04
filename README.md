@@ -35,7 +35,7 @@ The project targets `net10.0-windows` and x64. The official `Microsoft.Web.WebVi
 ## Download and run (no Visual Studio required)
 
 1. Open [the latest release](https://github.com/Ege-roze/SteamHourTracker/releases/latest).
-2. Download **SteamHourTracker-v1.0.0-win-x64.zip** from **Assets**. GitHub's automatic **Source code** archives are for building from source.
+2. Download **SteamHourTracker-v1.0.1-win-x64.zip** from **Assets**. GitHub's automatic **Source code** archives are for building from source.
 3. Extract the entire ZIP to a folder you can write to.
 4. Start Steam and sign in, then double-click **SteamHourTracker.exe** in the extracted folder.
 
@@ -105,6 +105,8 @@ The interface, app messages, dialogs, tray menu, and notifications are translate
 ### System tray
 
 Clicking the main window's **X** hides the app in the system tray; active sessions continue. Double-click the tray icon or choose **Show** to restore it. Choose **Exit** from the tray menu to stop all sessions and close the app completely.
+
+Starting the app again restores the existing window, including when it is hidden in the tray. Only one main window runs at a time; the separate background workers used by multi-game sessions continue to work normally.
 
 Window resizing, maximizing, and minimizing are currently disabled. Scrolling keeps controls accessible at larger font sizes.
 

@@ -17,7 +17,14 @@ namespace SteamHourTracker
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+            try
+            {
+                new SingleInstanceApplication().Run(args);
+            }
+            catch (Microsoft.VisualBasic.ApplicationServices.CantStartSingleInstanceException)
+            {
+                // The existing UI can be busy starting or closing. Never open a second one.
+            }
             return 0;
         }
     }

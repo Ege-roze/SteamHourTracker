@@ -283,7 +283,7 @@ public partial class Form1 : Form
         statusLabel.ForeColor = SystemColors.ControlText;
     }
 
-    private void RestoreWindow()
+    internal void RestoreWindow()
     {
         if (closing || IsDisposed) return;
         Show();
