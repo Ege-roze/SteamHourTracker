@@ -13,6 +13,8 @@ public partial class Form1 : Form
     private bool closing;
     private bool mayClose;
     private bool exitRequested;
+    private readonly ToolStripMenuItem trayGameCount = new() { Enabled = false };
+    private readonly ToolStripMenuItem trayPause = new();
     private SteamLibrarySnapshot? library;
     private CancellationTokenSource? libraryCancellation;
     private Task? libraryTask;
@@ -67,6 +69,16 @@ public partial class Form1 : Form
         trayIcon.BalloonTipClicked += (_, _) => RestoreWindow();
         trayIcon.BalloonTipClosed += (_, _) => { if (Visible && !closing) trayIcon.Visible = false; };
         showMenuItem.Click += (_, _) => RestoreWindow();
+        trayMenu.Items.Insert(0, trayGameCount);
+        trayMenu.Items.Insert(1, new ToolStripSeparator());
+        trayMenu.Items.Insert(3, trayPause);
+        trayMenu.Opening += (_, _) => UpdateTrayControls();
+        trayPause.Click += (_, _) =>
+        {
+            if (!CanTogglePause()) return;
+            if (sessions.IsPaused) sessions.Resume();
+            else { sessions.Pause(); FlushSettings(); }
+        };
         stopMenuItem.Click += async (_, _) => await StopSessionAsync();
         exitMenuItem.Click += (_, _) => ExitApplication();
         Resize += (_, _) =>
@@ -143,6 +155,18 @@ public partial class Form1 : Form
 
     private Task StopSessionAsync() => cardFarm.IsBusy ? cardFarm.StopAsync() : coordinator.StopAllAsync();
 
+    private bool CanTogglePause() => !closing && coordinator.IsBusy && !coordinator.IsPreparing &&
+        !coordinator.IsRestoring && cardFarm.Phase != CardFarmPhase.Stopping &&
+        (cardFarm.IsBusy || sessions.Runs.Any(r => r.IsActive && !r.StopRequested));
+
+    private void UpdateTrayControls()
+    {
+        int running = sessions.Runs.Count(r => r.Status == GameSessionStatus.Running);
+        trayGameCount.Text = UiText.Format($"Aktif oyun: {running}");
+        trayPause.Text = sessions.IsPaused ? UiText.Get("Tümünü sürdür") : UiText.Get("Tümünü duraklat");
+        trayPause.Enabled = CanTogglePause();
+    }
+
     private void UpdateSessionState()
     {
         if (IsDisposed) return;
@@ -163,6 +187,7 @@ public partial class Form1 : Form
         }
         if (running == 0) elapsed.Stop();
         UpdateUiTimer();
+        UpdateTrayControls();
         trayIcon.Text = coordinator.IsBusy ? UiText.Get("SteamHourTracker • oturum açık") : UiText.Get("SteamHourTracker • durduruldu");
         NotifyCompletedTargets();
         SetBusy(sessions.IsBusy);
@@ -185,6 +210,7 @@ public partial class Form1 : Form
         if (!coordinator.IsBusy && cardFarm.Phase == CardFarmPhase.Finished)
             SetStatus(cardFarm.Message, cardFarm.Error != null);
         UpdateTime();
+        if (sessions.IsPaused) SetStatus(UiText.Get("Duraklatıldı"));
     }
 
     private async void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -233,7 +259,7 @@ public partial class Form1 : Form
         startButton.Enabled = !busy && !closing && !libraryLoading;
         stopButton.Enabled = stopMenuItem.Enabled = !closing && !coordinator.IsRestoring &&
             (cardFarm.IsBusy || coordinator.IsPreparing || sessions.Runs.Any(r =>
-            r.Status is GameSessionStatus.Starting or GameSessionStatus.Running or GameSessionStatus.Reconnecting));
+            r.IsActive && !r.StopRequested));
         gamesBox.Enabled = appIdBox.Enabled = gameNameBox.Enabled = saveButton.Enabled = !busy && !libraryLoading;
         sourceBox.Enabled = searchBox.Enabled = !busy;
         refreshLibraryButton.Enabled = !busy && !libraryLoading;
@@ -251,7 +277,7 @@ public partial class Form1 : Form
         if (IsDisposed || Disposing) return;
         int interval = Visible || cardWindow is { Visible: true } ? 1000 : 5000;
         if (uiTimer.Interval != interval) uiTimer.Interval = interval;
-        uiTimer.Enabled = sessions.IsBusy || cardFarm.IsBusy;
+        uiTimer.Enabled = !sessions.IsPaused && (sessions.IsBusy || cardFarm.IsBusy);
     }
 
     private void UpdateTime()

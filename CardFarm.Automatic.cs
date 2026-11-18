@@ -27,6 +27,7 @@ internal sealed partial class CardFarm
             {
                 if (IsPermanentlyExcluded(id)) return UiText.Get("Kalıcı hariç");
                 if (excluded.Contains(id)) return UiText.Get("Atlandı");
+                if (sessions.IsPaused && IsBusy) return UiText.Get("Duraklatıldı");
                 if (!IsBusy) return Phase == CardFarmPhase.Finished ? UiText.Get("Durduruldu") : UiText.Get("Sırada");
                 var run = sessions.Runs.FirstOrDefault(r => r.Game.AppId == id);
                 if (run?.Status == GameSessionStatus.Reconnecting) return UiText.Get("Bağlantı bekleniyor");
@@ -74,11 +75,12 @@ internal sealed partial class CardFarm
         int attempt = 0;
         while (true)
         {
-            token.ThrowIfCancellationRequested();
+            await sessions.WaitWhilePausedAsync(token);
             SetPhase(CardFarmPhase.Scanning, UiText.Get("Kart modu • Steam'deki bütün rozet sayfaları taranıyor…"));
             try
             {
                 var snapshot = await inventory!.ReadAsync(token);
+                await sessions.WaitWhilePausedAsync(token);
                 if (snapshot.Account != account) throw new ReconnectAccountChangedException();
                 var scanned = snapshot.Games.Where(g => owned.ContainsKey(g.AppId)).ToArray();
                 if (scanned.Any(g => g.AppId == 0 || g.DropsRemaining < 0 || !double.IsFinite(g.HoursPlayed) || g.HoursPlayed < 0) ||
@@ -125,9 +127,9 @@ internal sealed partial class CardFarm
             await ScanAsync(account, token);
             var remaining = ready.Where(g => !IsExcluded(g.AppId) && cardGames.TryGetValue(g.AppId, out var card) && card.DropsRemaining > 0).ToArray();
             if (remaining.Length == 0) continue;
-            stageTargets = null; stageDuration = timing.Pause; pauseClock.Restart();
+            stageTargets = null; stageDuration = timing.Pause;
             SetPhase(CardFarmPhase.Pause, UiText.Format($"Kart modu • {GamesRemaining} oyun / {CardsRemaining} kart kaldı. Tekli aç/kapa öncesi ara."));
-            await Task.Delay(timing.Pause, token); pauseClock.Stop();
+            await WaitBetweenStagesAsync(timing.Pause, token);
             foreach (var game in remaining)
             {
                 token.ThrowIfCancellationRequested();

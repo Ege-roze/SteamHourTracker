@@ -1,4 +1,8 @@
 {
+  "Aktif oyun: {0}": "Active games: {0}",
+  "Tümünü duraklat": "Pause all",
+  "Tümünü sürdür": "Resume all",
+  "Duraklatıldı": "Paused",
   "SteamClient023 desteklenmiyor.": "SteamClient023 is not supported.",
   "Başlat": "Start",
   "Durdur": "Stop",

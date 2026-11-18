@@ -128,6 +128,7 @@ public partial class Form1
                 null => UiText.Get("Bekliyor"),
                 GameSessionStatus.Starting => UiText.Get("Bağlanıyor…"),
                 GameSessionStatus.Running => UiText.Get("Çalışıyor"),
+                GameSessionStatus.Paused => UiText.Get("Duraklatıldı"),
                 GameSessionStatus.Reconnecting => UiText.Get("Tekrar bağlantı"),
                 GameSessionStatus.Stopping => UiText.Get("Durduruluyor…"),
                 GameSessionStatus.Failed => UiText.Get("Hata"),
@@ -156,7 +157,7 @@ public partial class Form1
         removeSelectedButton.Enabled = !closing && !coordinator.IsBusy && !sessions.IsBusy && ids.Length > 0;
         clearSelectedButton.Enabled = !closing && !coordinator.IsBusy && !sessions.IsBusy && selectedGames.Count > 0;
         stopSelectedButton.Enabled = !closing && (cardFarm.IsBusy ? ids.Any(id => !cardFarm.IsExcluded(id)) : sessions.Runs.Any(r =>
-            ids.Contains(r.Game.AppId) && r.Status is GameSessionStatus.Starting or GameSessionStatus.Running or GameSessionStatus.Reconnecting));
+            ids.Contains(r.Game.AppId) && r.IsActive && !r.StopRequested));
     }
 
     private void ResizeSelectedColumns()

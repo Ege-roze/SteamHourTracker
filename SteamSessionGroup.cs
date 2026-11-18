@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace SteamHourTracker;
 
-internal enum GameSessionStatus { Starting, Running, Reconnecting, Stopping, Stopped, Failed }
+internal enum GameSessionStatus { Starting, Running, Reconnecting, Paused, Stopping, Stopped, Failed }
 internal sealed class ReconnectAccountChangedException() : InvalidOperationException(UiText.Get("Steam hesabı değişti. Kütüphaneyi yenileyip tekrar başlat."));
 
 internal sealed class GameSessionRun(SavedGame game, int targetMinutes, double previousSeconds = 0)
@@ -48,9 +48,11 @@ internal sealed class GameSessionRun(SavedGame game, int targetMinutes, double p
         Elapsed.Stop();
         CaptureWorkedTime(now);
     }
-    public bool IsActive => Status is GameSessionStatus.Starting or GameSessionStatus.Running or GameSessionStatus.Reconnecting or GameSessionStatus.Stopping;
+    public bool IsActive => Status is GameSessionStatus.Starting or GameSessionStatus.Running or GameSessionStatus.Reconnecting or GameSessionStatus.Paused or GameSessionStatus.Stopping;
     internal SteamSession Session { get; set; } = new();
-    internal CancellationTokenSource RetryCancellation { get; } = new();
+    internal CancellationTokenSource RetryCancellation { get; set; } = new();
+    internal bool Interrupted { get; set; }
+    internal CancellationTokenSource StopCancellation { get; } = new();
     internal ulong ExpectedAccount { get; set; }
     internal bool HasConnected { get; set; }
     internal bool AccountChanged { get; set; }
@@ -70,6 +72,40 @@ internal sealed class SteamSessionGroup
     public bool IsBusy => runs.Any(r => r.IsActive);
     public Task Completion { get; private set; } = Task.CompletedTask;
     public event Action? Changed;
+    private TaskCompletionSource? resumeSignal;
+    public event Action? Pausing;
+    public bool IsPaused => resumeSignal != null;
+    public async Task WaitWhilePausedAsync(CancellationToken token)
+    {
+        while (resumeSignal is { } signal) await signal.Task.WaitAsync(token);
+        token.ThrowIfCancellationRequested();
+    }
+
+    public void Pause()
+    {
+        if (IsPaused) return;
+        resumeSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Pausing?.Invoke();
+        foreach (var run in runs.Where(r => r.IsActive && !r.StopRequested))
+        {
+            run.Interrupted = true;
+            run.StopClock();
+            run.Status = GameSessionStatus.Paused;
+            run.Message = UiText.Get("Duraklatıldı");
+            run.RetryCancellation.Cancel();
+            // The lifetime awaits this same shutdown before launching another worker.
+            _ = run.Session.StopAsync();
+        }
+        Changed?.Invoke();
+    }
+
+    public void Resume()
+    {
+        var signal = resumeSignal;
+        resumeSignal = null;
+        signal?.TrySetResult();
+        if (signal != null) Changed?.Invoke();
+    }
     public int Revision { get; private set; }
     internal Func<int, TimeSpan> RetryDelay { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(60, 10 * Math.Pow(2, Math.Min(3, attempt - 1))));
 
@@ -106,10 +142,41 @@ internal sealed class SteamSessionGroup
     private async Task RunAsync(GameSessionRun run, Func<ulong, CancellationToken, Task<ulong>>? beforeRetry)
     {
         bool failed = false;
-        int consecutiveFailures = 0;
         try
         {
             while (!run.StopRequested)
+            {
+                await WaitWhilePausedAsync(run.StopCancellation.Token);
+                if (IsPaused) continue;
+                if (run.Interrupted)
+                {
+                    run.RetryCancellation.Dispose();
+                    run.RetryCancellation = new();
+                    run.Interrupted = false;
+                }
+                failed = await RunUntilInterruptedAsync(run, beforeRetry);
+                if (!run.Interrupted || run.StopRequested || run.TargetReached || run.AccountChanged) break;
+            }
+        }
+        catch (OperationCanceledException) when (run.StopRequested) { }
+        finally
+        {
+            run.Status = failed && !run.StopRequested ? GameSessionStatus.Failed : GameSessionStatus.Stopped;
+            if (run.StopRequested) run.Message = UiText.Get("Oturum durduruldu.");
+            run.RetryCancellation.Dispose();
+            run.StopCancellation.Dispose();
+            run.Started.TrySetResult();
+            Changed?.Invoke();
+        }
+    }
+
+    private async Task<bool> RunUntilInterruptedAsync(GameSessionRun run, Func<ulong, CancellationToken, Task<ulong>>? beforeRetry)
+    {
+        bool failed = false;
+        int consecutiveFailures = 0;
+        try
+        {
+            while (!run.StopRequested && !run.Interrupted)
             {
                 if (run.TargetMinutes > 0 && run.CompletedSeconds >= run.TargetMinutes * 60d)
                 {
@@ -126,7 +193,7 @@ internal sealed class SteamSessionGroup
                     catch (OperationCanceledException) when (run.StopRequested) { break; }
                     catch (Exception ex) { run.Message = ex.Message; retry = failed = true; }
                 }
-                if (run.StopRequested) break;
+                if (run.StopRequested || run.Interrupted) break;
                 if (!retry)
                 {
                     run.Session = new SteamSession();
@@ -137,7 +204,7 @@ internal sealed class SteamSessionGroup
                     {
                         await run.Session.StartAsync(run.Game.AppId, run.TargetMinutes,
                             run.CompletedSeconds > 0 ? run.TargetMinutes * 60d - run.CompletedSeconds : null, run.ExpectedAccount);
-                        if (run.StopRequested) break;
+                        if (run.StopRequested || run.Interrupted) break;
                         run.HasConnected = true;
                         if (run.Session.SteamId != 0) run.ExpectedAccount = run.Session.SteamId;
                         consecutiveFailures = 0;
@@ -170,7 +237,7 @@ internal sealed class SteamSessionGroup
                         catch (Exception ex) { failed = true; retry = false; run.Message = UiText.Get("Oturum kapatılamadı: ") + ex.Message; }
                     }
                 }
-                if (run.StopRequested || !retry || run.TargetReached) break;
+                if (run.StopRequested || run.Interrupted || !retry || run.TargetReached) break;
                 run.RetryCount++;
                 TimeSpan delay = RetryDelay(++consecutiveFailures);
                 run.Status = GameSessionStatus.Reconnecting;
@@ -180,7 +247,7 @@ internal sealed class SteamSessionGroup
                 await Task.Delay(delay, run.RetryCancellation.Token);
             }
         }
-        catch (OperationCanceledException) when (run.StopRequested) { }
+        catch (OperationCanceledException) when (run.StopRequested || run.Interrupted) { }
         catch (Exception ex)
         {
             if (!run.StopRequested)
@@ -199,12 +266,8 @@ internal sealed class SteamSessionGroup
                 failed = true;
                 run.Message = UiText.Get("Oturum kapatılamadı: ") + ex.Message;
             }
-            run.Status = failed && !run.StopRequested ? GameSessionStatus.Failed : GameSessionStatus.Stopped;
-            if (run.StopRequested) run.Message = UiText.Get("Oturum durduruldu.");
-            run.RetryCancellation.Dispose();
-            run.Started.TrySetResult();
-            Changed?.Invoke();
         }
+        return failed;
     }
 
     public Task StopAsync(uint appId)
@@ -219,6 +282,7 @@ internal sealed class SteamSessionGroup
     private async Task StopCoreAsync(GameSessionRun run)
     {
         run.StopRequested = true;
+        run.StopCancellation.Cancel();
         run.Status = GameSessionStatus.Stopping;
         run.Message = UiText.Get("Oturum durduruldu.");
         run.StopClock();

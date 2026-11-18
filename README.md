@@ -35,7 +35,7 @@ The project targets `net10.0-windows` and x64. The official `Microsoft.Web.WebVi
 ## Download and run (no Visual Studio required)
 
 1. Open [the latest release](https://github.com/Ege-roze/SteamHourTracker/releases/latest).
-2. Download **SteamHourTracker-v1.0.1-win-x64.zip** from **Assets**. GitHub's automatic **Source code** archives are for building from source.
+2. Download **SteamHourTracker-v1.0.2-win-x64.zip** from **Assets**. GitHub's automatic **Source code** archives are for building from source.
 3. Extract the entire ZIP to a folder you can write to.
 4. Start Steam and sign in, then double-click **SteamHourTracker.exe** in the extracted folder.
 
@@ -103,6 +103,8 @@ Use **Dil / Language** at the top right to choose **English** or **Türkçe**. T
 The interface, app messages, dialogs, tray menu, and notifications are translated. Game names, account names, and Steam's own web content are left unchanged. Instructions below use the English interface labels.
 
 ### System tray
+
+Right-click the tray icon to see the active game count. Choose **Pause all** to pause the games and their timers, then **Resume all** to continue. Card mode keeps its queue and remaining stage time while paused.
 
 Clicking the main window's **X** hides the app in the system tray; active sessions continue. Double-click the tray icon or choose **Show** to restore it. Choose **Exit** from the tray menu to stop all sessions and close the app completely.
 

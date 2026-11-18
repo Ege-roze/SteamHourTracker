@@ -105,6 +105,7 @@ internal sealed class SteamSessionCoordinator(SteamSessionGroup sessions, ISteam
                 }
             }
             IsRestoring = IsBusy = false;
+            sessions.Resume();
             started.TrySetResult();
             Changed?.Invoke();
         }

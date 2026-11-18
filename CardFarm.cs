@@ -105,10 +105,8 @@ internal sealed partial class CardFarm(SteamSessionGroup sessions, SteamSessionC
                     currentAccount = await StageAsync(Available(), timing.Together, CardFarmPhase.Together, checkAccount, currentAccount, token);
                     if (Available().Length == 0) break;
                     stageDuration = timing.Pause;
-                    pauseClock.Restart();
                     SetPhase(CardFarmPhase.Pause, UiText.Format($"Kart modu • Tur {Round}: oyunlar kapalı, ara bekleme."));
-                    await Task.Delay(timing.Pause, token);
-                    pauseClock.Stop();
+                    await WaitBetweenStagesAsync(timing.Pause, token);
                     foreach (var game in Available())
                     {
                         token.ThrowIfCancellationRequested();
@@ -137,13 +135,33 @@ internal sealed partial class CardFarm(SteamSessionGroup sessions, SteamSessionC
         }
     }
 
+    private async Task WaitBetweenStagesAsync(TimeSpan duration, CancellationToken token)
+    {
+        pauseClock.Reset();
+        while (duration > pauseClock.Elapsed)
+        {
+            await sessions.WaitWhilePausedAsync(token);
+            using var delay = CancellationTokenSource.CreateLinkedTokenSource(token);
+            void Interrupt() { pauseClock.Stop(); delay.Cancel(); }
+            sessions.Pausing += Interrupt;
+            try
+            {
+                var remaining = duration - pauseClock.Elapsed;
+                pauseClock.Start();
+                await Task.Delay(remaining, delay.Token);
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { }
+            finally { sessions.Pausing -= Interrupt; pauseClock.Stop(); }
+        }
+    }
+
     private async Task<ulong> StageAsync(SavedGame[] games, TimeSpan duration, CardFarmPhase phase,
         Func<ulong, CancellationToken, Task<ulong>> checkAccount, ulong account, CancellationToken token, IReadOnlyDictionary<uint, TimeSpan>? targets = null)
     {
         int attempt = 0;
         while (true)
         {
-            token.ThrowIfCancellationRequested();
+            await sessions.WaitWhilePausedAsync(token);
             try { account = await checkAccount(account, token); break; }
             catch (ReconnectAccountChangedException) { throw; }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -153,7 +171,7 @@ internal sealed partial class CardFarm(SteamSessionGroup sessions, SteamSessionC
                 await Task.Delay(RetryDelay(++attempt), token);
             }
         }
-        token.ThrowIfCancellationRequested();
+        await sessions.WaitWhilePausedAsync(token);
         games = games.Where(g => !IsExcluded(g.AppId)).ToArray();
         if (games.Length == 0) return account;
         stageDuration = duration;
@@ -170,7 +188,7 @@ internal sealed partial class CardFarm(SteamSessionGroup sessions, SteamSessionC
         await startup;
         while (true)
         {
-            token.ThrowIfCancellationRequested();
+            await sessions.WaitWhilePausedAsync(token);
             if (sessions.Runs.Any(r => r.AccountChanged)) throw new ReconnectAccountChangedException();
             foreach (var run in sessions.Runs)
             {
